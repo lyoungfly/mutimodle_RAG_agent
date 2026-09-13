@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "papermind"
+version = "0.1.0"
+description = "Multimodal Agentic RAG for scientific documents"
+requires-python = ">=3.11"
+dependencies = ["numpy>=1.26,<3", "httpx>=0.27,<1", "python-dotenv>=1,<2"]
+
+[project.optional-dependencies]
+api = ["fastapi>=0.115,<1", "uvicorn[standard]>=0.30,<1", "python-multipart>=0.0.20"]
+pdf = ["pymupdf>=1.24,<2"]
+vision = ["pillow>=11,<13"]
+models = ["sentence-transformers>=5.1,<6", "faiss-cpu>=1.8,<2"]
+test = ["pytest>=8,<10", "ruff>=0.11,<1"]
+
+[project.scripts]
+papermind = "papermind.cli:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.setuptools.packages.find]
+include = ["papermind*"]
+
+[tool.setuptools.package-data]
+"papermind.api" = ["static/*.html", "static/*.css", "static/*.js"]

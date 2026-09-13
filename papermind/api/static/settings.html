@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>模型 API 配置 · PaperMind</title>
+  <link rel="stylesheet" href="/static/style.css?v=3"><link rel="stylesheet" href="/static/settings.css?v=4">
+</head>
+<body>
+<header><div><strong>PaperMind</strong><span>模型连接</span></div><a href="/">返回文献工作台 ↗</a></header>
+<main class="settings-layout">
+  <section class="settings-intro">
+    <div class="eyebrow">MODEL CONNECTIONS</div>
+    <h1>连接模型，开始有据可查的回答。</h1>
+    <p>先配置回答模型，就能把检索证据整理成带引用的回答。需要理解论文图片时，再配置视觉模型。</p>
+    <ol class="steps"><li><b>获取 API 信息</b><span>在服务商控制台创建 API Key，并找到兼容 Chat Completions 的基础地址和模型 ID。</span></li><li><b>填写并测试</b><span>填写下方三项信息，点击“测试连接”。测试会发送一条简短请求，可能产生少量 API 费用，不会发送你的论文。</span></li><li><b>保存并使用</b><span>保存后无需重启。返回工作台即可提问；视觉模型启用或更换后，重新索引需要分析的文献。</span></li></ol>
+  </section>
+  <section class="configuration">
+    <form id="settings-form" autocomplete="off">
+      <div id="connections"></div>
+      <div class="save-bar"><button id="save" type="submit" disabled>保存配置并生效</button><a href="/">返回工作台</a></div>
+      <p id="save-status" role="status" aria-live="polite">正在读取当前配置…</p>
+      <p class="muted">密钥保存在这台电脑的项目数据目录中，不加密；页面只显示是否已保存，不回显密钥，也不写入浏览器存储。请勿分享该配置文件。网页保存的模型 API 配置优先于 .env。</p>
+    </form>
+  </section>
+  <section class="help-panel">
+    <h2>这三项应该怎么填？</h2>
+    <dl>
+      <dt>Base URL · API 基础地址</dt><dd>复制服务商文档中的 API 地址，不是聊天网页的地址。系统会自动拼接 <code>/chat/completions</code>；如果粘贴了完整接口地址，会自动去掉这一段。保留服务商要求的路径，例如 <code>/v1</code>。</dd>
+      <dt>Model · 模型名称</dt><dd>原样复制控制台或接口文档中的模型 ID，注意大小写。它可能与产品展示名称不同。本地服务填写启动时设置的模型名或服务别名。</dd>
+      <dt>API Key · 访问密钥</dt><dd>填写服务商控制台创建的密钥，不是账户密码，也不用加 <code>Bearer</code>。已保存后留空表示保留；要移除密钥请勾选“清除已保存的密钥”。本地服务未启用鉴权时可以留空。</dd>
+    </dl>
+    <details><summary>填写示例与官方说明</summary>
+      <p><b>DeepSeek 回答模型：</b>地址填 <code>https://api.deepseek.com</code>，模型 ID 按控制台当前可用模型填写，密钥在服务商控制台创建。<a href="https://api-docs.deepseek.com/" target="_blank" rel="noopener noreferrer">官方接入说明 ↗</a></p>
+      <p><b>本地兼容服务：</b>例如 <code>http://127.0.0.1:8001/v1</code>，端口以实际启动参数为准，模型名称填已部署的服务名。<a href="https://docs.vllm.ai/en/latest/serving/openai_compatible_server.html" target="_blank" rel="noopener noreferrer">vLLM 官方说明 ↗</a></p>
+      <p><b>视觉模型：</b>必须支持图片输入与兼容的 Chat Completions 接口；可以与回答模型使用同一服务，但需在下方单独填写。同一家服务商的纯文本模型未必能看图。</p>
+    </details>
+    <details><summary>测试失败时检查什么？</summary><p>401：检查密钥；403：检查模型授权；404：核对基础地址和模型 ID；429：检查额度或稍后重试；超时：确认网络正常，本地服务已启动。测试通过仅代表此次接口请求成功，结构化回答和图表识别效果需用文献验证。</p></details>
+    <h2 class="local-title">检索模型已在本地运行</h2>
+    <p class="muted">下列模型用于查找和排序证据，不需要填写 API Key。此页只修改回答与视觉分析服务。</p>
+    <ul id="local-models"></ul>
+  </section>
+</main>
+<template id="connection-template">
+  <fieldset class="connection-card">
+    <legend></legend><p class="role-help"></p>
+    <label class="check"><input type="checkbox" data-field="enabled">启用此模型</label>
+    <label data-label="preset">快捷填写地址</label>
+    <select data-field="preset"><option value="">自定义 / 保留当前地址</option><option value="local">本地兼容服务</option><option value="deepseek">DeepSeek（仅填回答接口地址）</option></select>
+    <label data-label="base_url">Base URL · API 基础地址</label>
+    <input data-field="base_url" type="url" maxlength="2048" required spellcheck="false" placeholder="例如：http://127.0.0.1:8001/v1">
+    <p class="field-help">粘贴 API 基础地址；不要填写服务商的聊天网页地址。</p>
+    <label data-label="model">Model · 模型名称</label>
+    <input data-field="model" type="text" maxlength="256" spellcheck="false" placeholder="从控制台复制 model ID">
+    <p class="field-help">启用模型时必填，必须与服务商提供的 ID 一致。</p>
+    <label data-label="api_key">API Key · 访问密钥</label>
+    <div class="key-row"><input data-field="api_key" type="password" maxlength="4096" autocomplete="new-password" spellcheck="false" placeholder="输入 API Key"><button type="button" class="secondary show-key" aria-pressed="false">显示</button></div>
+    <p class="key-status field-help"></p>
+    <label class="check"><input data-field="clear_api_key" type="checkbox">清除已保存的密钥</label>
+    <button type="button" class="secondary test-connection">测试连接</button>
+    <p class="test-status" role="status" aria-live="polite"></p>
+  </fieldset>
+</template>
+<script src="/static/settings.js?v=2" defer></script>
+</body></html>

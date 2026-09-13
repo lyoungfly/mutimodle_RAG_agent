@@ -1,0 +1,1960 @@
+可以。这个项目我建议不要做成“一个能问 PDF 的聊天机器人”，而要直接按**AI 算法工程师简历项目**的标准去设计。
+
+项目最终应该能让面试官看到你具备六类能力：
+
+> **多模态文档理解 + RAG 检索算法 + Reranker + Agent + LLM 微调 + 推理部署与评测**
+
+我建议项目正式命名为：
+
+# PaperMind
+### 面向复杂科研文档的多模态知识库与 Agentic RAG 智能体
+
+一句话定位：
+
+> 支持 PDF、PPT、Word、图片、表格等复杂文档的统一解析，通过多模态检索、混合召回、重排序和 Agent 自主检索，实现可溯源的跨文档科研问答、数据对比和论文分析。
+
+---
+
+# 一、先明确这个项目到底解决什么问题
+
+普通 RAG：
+
+```text
+PDF
+ ↓
+提取文字
+ ↓
+切块
+ ↓
+Embedding
+ ↓
+向量库
+ ↓
+LLM
+```
+
+PaperMind 应该是：
+
+```text
+                 PDF / PPT / DOCX / Image
+                           │
+                           ↓
+                  Multimodal Parser
+                           │
+        ┌──────────────────┼──────────────────┐
+        ↓                  ↓                  ↓
+      Text               Table              Figure
+        │                  │                  │
+        ↓                  ↓                  ↓
+   Text Encoder       Structured Data        VLM
+        │                  │                  │
+        └──────────────────┴──────────────────┘
+                           ↓
+                   Unified Knowledge Base
+                           ↓
+              Hybrid Retrieval Pipeline
+                           │
+              ┌────────────┴────────────┐
+              ↓                         ↓
+             BM25                   Dense Search
+              │                         │
+              └────────────┬────────────┘
+                           ↓
+                          RRF
+                           ↓
+                       Reranker
+                           ↓
+                       Top Context
+                           ↓
+                     Agentic RAG
+                    /      |       \
+                   /       |        \
+             Retrieval   Python    Tools
+                   \       |        /
+                    \      |       /
+                         LLM
+                           ↓
+                Answer + Citation
+```
+
+你的系统最终不是：
+
+> “帮我总结这篇论文。”
+
+而应该能够完成这种任务：
+
+> “比较这 10 篇超分论文在 Urban100 ×4 上的 PSNR、参数量和 FLOPs，并指出性能/复杂度最优的模型。”
+
+这一个问题会同时触发：
+
+- 多文档检索
+- 表格识别
+- 实体对齐
+- 数据抽取
+- Python 计算
+- 多步推理
+- 来源引用
+
+这才有项目价值。
+
+---
+
+# 二、核心用户场景
+
+我建议你围绕科研论文做，因为最容易形成技术深度。
+
+系统至少支持六类任务。
+
+## 1. 单论文问答
+
+用户上传论文：
+
+> FreqMamba 的核心创新是什么？
+
+系统找到：
+
+```text
+Method
+↓
+Architecture
+↓
+Frequency Module
+```
+
+然后回答，并显示：
+
+> Source: Page 5, Section 3.2
+
+---
+
+## 2. 图像理解
+
+用户：
+
+> Figure 3 展示的网络是怎么运行的？
+
+普通文本 RAG基本失效。
+
+PaperMind：
+
+```text
+Figure 3
++
+Caption
++
+附近正文
++
+VLM Description
+        ↓
+     Answer
+```
+
+---
+
+## 3. 表格问答
+
+例如论文 Table 2：
+
+```text
+Model      Params     PSNR
+EDSR       43M        26.64
+SwinIR     12M        27.45
+Model-X    4M         27.38
+```
+
+用户：
+
+> 参数量小于 5M 的模型中谁最好？
+
+系统应该真正：
+
+```text
+Table Parsing
+↓
+Structured Query
+↓
+Filtering
+↓
+Answer
+```
+
+而不是单纯让 LLM 猜。
+
+---
+
+## 4. 跨论文比较
+
+这是很重要的能力。
+
+用户上传：
+
+```text
+20 papers
+```
+
+问：
+
+> 这些论文中哪些使用了状态空间模型？
+
+系统需要跨 document retrieval。
+
+进一步：
+
+> 分别比较它们的建模方式。
+
+---
+
+## 5. 自动综述
+
+用户：
+
+> 总结这些论文在轻量级超分中的技术路线。
+
+Agent 可以自动：
+
+```text
+检索相关文档
+↓
+根据 Method 分类
+↓
+CNN
+Transformer
+Mamba
+Frequency
+Dynamic computation
+↓
+生成总结
+```
+
+---
+
+## 6. Agent 数据分析
+
+用户：
+
+> 把所有论文中 Urban100 ×4 的结果提取出来，按照 PSNR / Params 排序。
+
+系统执行：
+
+```text
+Search tables
+↓
+Extract values
+↓
+Normalize names
+↓
+Python Tool
+↓
+DataFrame
+↓
+Sort
+↓
+Answer
+```
+
+这就是非常好的 Agent demo。
+
+---
+
+# 三、整个项目分成 8 个模块
+
+我建议你的代码架构就是：
+
+```text
+PaperMind
+│
+├── 01 Document Understanding
+├── 02 Knowledge Construction
+├── 03 Retrieval
+├── 04 Reranking
+├── 05 Multimodal Retrieval
+├── 06 Agent
+├── 07 LLM Fine-tuning
+└── 08 Evaluation & Deployment
+```
+
+下面逐个讲。
+
+---
+
+# 四、模块 1：Document Understanding
+
+这是整个项目的地基。
+
+不要把 PDF 直接转成一串文字。
+
+你的目标应该是将一篇论文转换成一个**结构化 Document Object**。
+
+例如：
+
+```json
+{
+  "document_id": "paper_001",
+  "title": "...",
+  "authors": [],
+  "sections": [],
+  "figures": [],
+  "tables": [],
+  "references": []
+}
+```
+
+其中 section：
+
+```json
+{
+  "section": "3.2 Frequency-Aware Mamba Block",
+  "page": 5,
+  "paragraphs": [...]
+}
+```
+
+figure：
+
+```json
+{
+  "figure_id": "fig_3",
+  "page": 5,
+  "caption": "...",
+  "image_path": "...",
+  "visual_description": "..."
+}
+```
+
+table：
+
+```json
+{
+  "table_id": "table_2",
+  "page": 7,
+  "caption": "...",
+  "headers": [...],
+  "rows": [...]
+}
+```
+
+这样后面所有模块都很好做。
+
+---
+
+# 五、文档解析具体怎么做
+
+建议采用这种 pipeline：
+
+```text
+PDF
+ ↓
+Page segmentation
+ ↓
+Layout Detection
+ ↓
+Content Classification
+ ↓
+Text / Table / Figure
+```
+
+页面可能包含：
+
+```text
+Title
+Heading
+Paragraph
+Figure
+Caption
+Table
+Equation
+Footer
+Reference
+```
+
+你需要尽量保存：
+
+> **页面位置 + 内容类型 + 上下文关系**
+
+尤其是：
+
+```text
+Figure 3
+↕
+Figure caption
+↕
+Section 3.2
+```
+
+三者不能被分开。
+
+---
+
+# 六、Chunking 不要简单固定长度
+
+很多学生会：
+
+```python
+text_splitter(chunk_size=500)
+```
+
+这很弱。
+
+你应该设计一个：
+
+# Hierarchical Structure-Aware Chunking
+
+第一层：
+
+```text
+Document
+```
+
+第二层：
+
+```text
+Section
+```
+
+第三层：
+
+```text
+Paragraph / Figure / Table
+```
+
+最后才考虑 token 长度。
+
+例如：
+
+```text
+Section 3 Method
+│
+├── Chunk 3-1
+│   text
+│
+├── Chunk 3-2
+│   text
+│   Figure 2 Caption
+│
+└── Chunk 3-3
+    text
+```
+
+如果超过 token 限制，再进行：
+
+```text
+semantic split
+```
+
+而不是硬截断。
+
+---
+
+# 七、Chunk metadata 非常重要
+
+每个 chunk 不应该只有：
+
+```text
+content
+```
+
+至少：
+
+```json
+{
+  "chunk_id": "",
+  "doc_id": "",
+  "page": 5,
+  "section": "Method",
+  "content_type": "text",
+  "content": "...",
+  "parent_section": "",
+  "figure_id": null,
+  "table_id": null
+}
+```
+
+以后你可以按：
+
+```text
+page
+section
+document
+content type
+```
+
+过滤。
+
+例如：
+
+> “只搜索 Experiment 部分。”
+
+这就是 metadata filtering。
+
+---
+
+# 八、模块 2：Multimodal Understanding
+
+这是 PaperMind 区别普通 RAG 的核心。
+
+你至少处理：
+
+```text
+Text
+Table
+Figure
+```
+
+三类数据。
+
+---
+
+# 九、Figure 怎么处理
+
+每张 Figure：
+
+```text
+Image
++
+Caption
++
+Nearby Paragraph
+```
+
+交给视觉语言模型：
+
+```text
+VLM
+```
+
+生成：
+
+```text
+Visual Summary
+```
+
+例如模型结构图：
+
+```text
+Input image enters a shallow convolutional layer,
+followed by four Mamba blocks...
+```
+
+然后保存：
+
+```text
+Raw Image
+Caption
+Visual Description
+```
+
+三个表示。
+
+最终知识库里其实有：
+
+```text
+figure embedding
+text embedding
+```
+
+这就是多模态 retrieval 的基础。
+
+---
+
+# 十、表格一定不要只转成自然语言
+
+表格建议同时保存三份：
+
+### 原始表示
+
+HTML / Markdown。
+
+### 结构化表示
+
+```python
+DataFrame
+```
+
+### 文本表示
+
+例如：
+
+```text
+SwinIR achieves 27.45 PSNR with 11.9M parameters.
+```
+
+为什么？
+
+因为不同任务适合不同表示。
+
+问：
+
+> 哪个模型 PSNR 最高？
+
+最好直接 DataFrame。
+
+问：
+
+> SwinIR 的性能怎么样？
+
+文本检索就很好。
+
+---
+
+# 十一、模块 3：Embedding
+
+你的知识库至少建立两个索引。
+
+```text
+Text Index
+
+Image Index
+```
+
+Text：
+
+```text
+chunk
+↓
+Embedding Model
+↓
+vector
+```
+
+Figure：
+
+```text
+image / description
+↓
+multimodal embedding
+↓
+vector
+```
+
+向量库第一版完全可以：
+
+> FAISS
+
+后面工程化再换：
+
+> Qdrant / Milvus
+
+我建议开发过程：
+
+```text
+V1 FAISS
+
+V2 Qdrant
+```
+
+因为先把算法做对，再工程化。
+
+---
+
+# 十二、Embedding 模型实验
+
+这里就是第一个真正的“算法实验”。
+
+你建立一个 Retrieval Dataset。
+
+例如：
+
+```text
+100 papers
+500 questions
+```
+
+每个问题都有：
+
+```text
+question
+
+gold document
+
+gold chunk
+```
+
+然后比较：
+
+```text
+Embedding-A
+Embedding-B
+Embedding-C
+```
+
+测：
+
+\[
+Recall@K
+\]
+
+例如：
+
+```text
+Recall@1
+Recall@3
+Recall@5
+Recall@10
+```
+
+还可以：
+
+\[
+MRR
+\]
+
+这样你以后简历能写：
+
+> 系统评估多种 embedding 模型，在自建论文 QA 数据集上将 Recall@5 从 XX% 提升至 XX%。
+
+这就是算法岗的项目描述。
+
+---
+
+# 十三、模块 4：Hybrid Retrieval
+
+你不要只做：
+
+```text
+vector similarity
+```
+
+应该：
+
+```text
+              Query
+                │
+        ┌───────┴───────┐
+        ↓               ↓
+      BM25          Dense Retrieval
+        │               │
+      Top20           Top20
+        └───────┬───────┘
+                ↓
+               RRF
+                ↓
+             Top20
+```
+
+为什么 BM25 重要？
+
+论文中大量存在：
+
+```text
+MambaIRv2
+Urban100
+4×
+PSNR
+Set14
+RTX 4090
+```
+
+这种精确关键词。
+
+Embedding 有时反而会把它们弱化。
+
+---
+
+# 十四、RRF
+
+可以实现：
+
+\[
+score(d)=\sum_r\frac{1}{k+rank_r(d)}
+\]
+
+其中：
+
+- BM25 是一个 ranking。
+- Dense retrieval 是另一个 ranking。
+
+通过 Reciprocal Rank Fusion 融合。
+
+这部分非常适合面试。
+
+因为你可以解释：
+
+> 为什么不是直接相加 BM25 score 和 cosine score？
+
+因为它们分数空间不同。
+
+RRF 用 rank 而不是原始 score，对不同 retrieval 方法更鲁棒。
+
+---
+
+# 十五、模块 5：Reranker
+
+Retrieval：
+
+```text
+100000 chunks
+↓
+Top 20
+```
+
+Reranker：
+
+```text
+Query + Chunk
+↓
+Cross Encoder
+↓
+Relevance Score
+↓
+Top 5
+```
+
+架构：
+
+```text
+Query
+                 \
+                  Cross Encoder → Score
+                 /
+Document Chunk
+```
+
+和 embedding 最大区别：
+
+Embedding：
+
+```text
+Query → vector
+
+Document → vector
+```
+
+可以提前计算 document embedding。
+
+速度快。
+
+Cross Encoder：
+
+```text
+Query + Document
+```
+
+一起输入模型。
+
+更准，但慢。
+
+所以标准架构：
+
+```text
+Retriever
+↓
+Top20
+↓
+Reranker
+↓
+Top5
+```
+
+---
+
+# 十六、做一个完整 Retrieval Ablation
+
+最终最好有：
+
+| Retrieval | Recall@5 | MRR |
+|---|---:|---:|
+| BM25 | XX | XX |
+| Dense | XX | XX |
+| BM25 + Dense | XX | XX |
+| Hybrid + Reranker | XX | XX |
+
+这张表是整个项目的第一张王牌。
+
+---
+
+# 十七、模块 6：Query Understanding
+
+用户问的问题不一定适合直接检索。
+
+所以增加：
+
+```text
+Query Processing
+```
+
+包含四个部分。
+
+### Query Rewrite
+
+例如：
+
+> 它的参数量呢？
+
+变成：
+
+> FreqMamba 的参数量是多少？
+
+---
+
+### Query Expansion
+
+用户：
+
+> Mamba 图像恢复模型
+
+扩展：
+
+```text
+Mamba
+State Space Model
+SSM
+Image Restoration
+Super Resolution
+```
+
+---
+
+### Intent Classification
+
+例如分：
+
+```text
+FACT_QA
+
+TABLE_QA
+
+FIGURE_QA
+
+COMPARISON
+
+SUMMARY
+
+CALCULATION
+```
+
+不同 intent 走不同 pipeline。
+
+---
+
+### Metadata Filter
+
+例如：
+
+> “2025 年之后的论文”
+
+转换：
+
+```text
+year >= 2025
+```
+
+再进入 retrieval。
+
+---
+
+# 十八、Query Router
+
+这是很值得自己实现的模块。
+
+```text
+Question
+   ↓
+Query Router
+   │
+   ├── Text QA → Text Retrieval
+   │
+   ├── Table QA → Table Retrieval
+   │
+   ├── Figure QA → Multimodal Retrieval
+   │
+   ├── Comparison → Multi-document Retrieval
+   │
+   └── Calculation → Retrieval + Python
+```
+
+这已经开始有 Agent 的雏形了。
+
+---
+
+# 十九、模块 7：Agent
+
+Agent 不要一开始就做。
+
+等 RAG pipeline 稳定以后再加。
+
+定义几个真正有意义的工具：
+
+```text
+search_text()
+
+search_figure()
+
+search_table()
+
+get_document()
+
+python_execute()
+
+compare_models()
+
+summarize_section()
+```
+
+例如用户：
+
+> 比较五篇论文中参数量小于 10M 的模型，并计算平均 PSNR。
+
+Agent：
+
+```text
+Thought
+需要先获得各论文实验数据
+
+↓
+
+search_table()
+
+↓
+
+结果不足
+
+↓
+
+search_text()
+
+↓
+
+获得 Params / PSNR
+
+↓
+
+python_execute()
+
+↓
+
+计算平均值
+
+↓
+
+Answer
+```
+
+---
+
+# 二十、Agent 最重要的是“什么时候继续搜索”
+
+建议做成一个循环：
+
+```text
+User Query
+↓
+Plan
+↓
+Retrieve
+↓
+Evaluate Evidence
+↓
+Enough?
+├─ Yes → Generate
+└─ No
+    ↓
+Rewrite Query
+    ↓
+Retrieve Again
+```
+
+也就是：
+
+# Agentic RAG
+
+而不是：
+
+> RAG + 一个叫 Agent 的类。
+
+---
+
+# 二十一、Evidence Grader
+
+这是项目里一个非常值得做的模块。
+
+输入：
+
+```text
+Question
+
+Retrieved Context
+```
+
+输出：
+
+```text
+SUFFICIENT
+
+PARTIAL
+
+IRRELEVANT
+```
+
+如果：
+
+```text
+IRRELEVANT
+```
+
+系统自动：
+
+```text
+Query Rewrite
+↓
+Retrieve again
+```
+
+限制最大：
+
+```text
+max_retrieval_iterations = 3
+```
+
+防止无限循环。
+
+---
+
+# 二十二、Hallucination Control
+
+你应该专门设计。
+
+最终回答时要求：
+
+```text
+每一个核心事实必须有来源
+```
+
+例如：
+
+> FreqMamba 在 Urban100 ×4 上达到 XX dB。[Paper 1, Page 8]
+
+同时加入：
+
+```text
+Answerability Detection
+```
+
+如果证据不足：
+
+> 当前知识库中的资料不足以回答该问题。
+
+这个能力比“强行回答”更重要。
+
+---
+
+# 二十三、Citation System
+
+这是产品和算法两边都非常加分的部分。
+
+回答：
+
+```text
+FreqMamba 使用频域感知的动态划分策略 [1]，
+并在 Urban100 ×4 上取得 XX dB [2]。
+```
+
+下面：
+
+```text
+[1] FreqMamba.pdf – Page 5 – Section 3.2
+
+[2] FreqMamba.pdf – Page 8 – Table 2
+```
+
+用户点击：
+
+```text
+[2]
+```
+
+直接打开对应 PDF 页面。
+
+---
+
+# 二十四、模块 8：LoRA
+
+等整个 RAG 系统完成后，再考虑微调。
+
+千万不要一开始训练 LLM。
+
+你要问：
+
+> 我的系统具体存在什么问题？
+
+假如发现基础模型：
+
+- 科研文体回答差。
+- 不懂输出格式。
+- 表格抽取不稳定。
+- Tool Calling 不稳定。
+
+再做 LoRA。
+
+---
+
+# 二十五、训练数据怎么构造
+
+例如：
+
+```json
+{
+  "instruction":
+  "提取以下实验表中的模型、PSNR和参数量",
+
+  "input":
+  "...table content...",
+
+  "output":
+  [
+    {
+      "model": "SwinIR",
+      "psnr": 27.45,
+      "params": 11.9
+    }
+  ]
+}
+```
+
+或者：
+
+```text
+Instruction:
+根据给定 context 回答问题，只允许依据提供的信息。
+
+Context:
+...
+
+Question:
+...
+
+Answer:
+...
+```
+
+可以建立：
+
+```text
+3000–10000 samples
+```
+
+小规模领域数据。
+
+---
+
+# 二十六、LoRA 前后一定要 Benchmark
+
+不是：
+
+> 使用 LoRA 提升模型效果。
+
+而是：
+
+| Model | Extraction Acc | Format Acc | Faithfulness |
+|---|---:|---:|---:|
+| Base | XX | XX | XX |
+| LoRA | XX | XX | XX |
+
+没有实验就不要在简历强调 LoRA。
+
+---
+
+# 二十七、Evaluation 是整个项目最关键的部分之一
+
+建议你创建：
+
+# PaperMind-Bench
+
+哪怕只有：
+
+```text
+500 questions
+```
+
+也可以。
+
+分成：
+
+| Type | 数量 |
+|---|---:|
+| Fact QA | 150 |
+| Table QA | 100 |
+| Figure QA | 80 |
+| Multi-hop | 80 |
+| Comparison | 50 |
+| Unanswerable | 40 |
+
+总计：
+
+```text
+500
+```
+
+---
+
+# 二十八、Retrieval 指标
+
+至少：
+
+### Recall@K
+
+\[
+Recall@K =
+\frac{正确证据出现在TopK的问题数}{问题总数}
+\]
+
+测试：
+
+```text
+R@1
+R@3
+R@5
+R@10
+```
+
+---
+
+### MRR
+
+如果正确结果排名：
+
+```text
+1 → 1
+
+2 → 0.5
+
+3 → 0.333
+```
+
+求平均。
+
+用于评价正确文档排名。
+
+---
+
+### NDCG
+
+后期可以加。
+
+衡量多个相关结果的排序质量。
+
+---
+
+# 二十九、Generation 指标
+
+建议：
+
+```text
+Answer Correctness
+
+Faithfulness
+
+Citation Accuracy
+
+Answerability Accuracy
+```
+
+其中最重要的是：
+
+# Faithfulness
+
+也就是：
+
+> 回答中的内容有多少真正来自 context。
+
+因为 RAG 最大的问题就是 hallucination。
+
+---
+
+# 三十、建立错误分析系统
+
+这是算法岗位非常喜欢的。
+
+将错误分成：
+
+```text
+Retrieval Error
+    没检索到
+
+Ranking Error
+    检索到但排名太低
+
+Parsing Error
+    PDF解析错误
+
+Table Error
+    表格数据识别失败
+
+Reasoning Error
+    Context正确但LLM推理错
+
+Hallucination
+    Context没有但生成了
+```
+
+然后统计：
+
+```text
+Error Distribution
+```
+
+例如最终：
+
+```text
+Retrieval 35%
+Parsing 20%
+Reasoning 20%
+Table 15%
+Hallucination 10%
+```
+
+然后你就知道接下来优化什么。
+
+这比无脑调 prompt 专业很多。
+
+---
+
+# 三十一、推理部署
+
+系统最后最好不要完全依赖第三方 API。
+
+至少部署一个本地开源模型。
+
+架构：
+
+```text
+GPU Server
+    │
+   vLLM
+    │
+OpenAI-Compatible API
+    │
+ PaperMind Backend
+```
+
+学习：
+
+```text
+PagedAttention
+
+KV Cache
+
+Continuous Batching
+```
+
+Benchmark：
+
+```text
+TTFT
+
+TPOT
+
+Tokens/s
+
+Requests/s
+
+GPU Memory
+```
+
+---
+
+# 三十二、系统后端
+
+推荐：
+
+```text
+FastAPI
+```
+
+API 设计：
+
+```text
+POST /documents/upload
+
+POST /documents/index
+
+POST /chat
+
+POST /agent
+
+GET /documents
+
+GET /sources/{id}
+```
+
+例如：
+
+```text
+POST /chat
+```
+
+输入：
+
+```json
+{
+  "question": "...",
+  "collection_id": "sr_papers"
+}
+```
+
+返回：
+
+```json
+{
+  "answer": "...",
+  "sources": [],
+  "latency": 1.25
+}
+```
+
+---
+
+# 三十三、前端不要浪费太多时间
+
+你不是应聘前端。
+
+所以 UI 做到能展示即可。
+
+布局：
+
+```text
+┌─────────────────────────────────┐
+│ PaperMind                       │
+├─────────┬───────────────────────┤
+│ Papers  │ Chat                  │
+│         │                       │
+│ paper1  │ User: ...             │
+│ paper2  │                       │
+│ paper3  │ AI: ... [1][2]        │
+│         │                       │
+├─────────┴───────────────────────┤
+│ Source: Page 5 / Figure 3       │
+└─────────────────────────────────┘
+```
+
+重点不是漂亮。
+
+重点是能够展示：
+
+```text
+Citation
+
+Figure
+
+Table
+
+Agent Steps
+```
+
+---
+
+# 三十四、项目目录建议
+
+最终 GitHub：
+
+```text
+PaperMind/
+│
+├── README.md
+├── requirements.txt
+├── docker-compose.yml
+│
+├── configs/
+│   ├── retrieval.yaml
+│   └── model.yaml
+│
+├── papermind/
+│
+│   ├── parser/
+│   │   ├── pdf_parser.py
+│   │   ├── layout_parser.py
+│   │   ├── table_parser.py
+│   │   └── figure_parser.py
+│   │
+│   ├── chunking/
+│   │   ├── semantic_chunker.py
+│   │   └── structure_chunker.py
+│   │
+│   ├── embedding/
+│   │   ├── text_embedding.py
+│   │   └── image_embedding.py
+│   │
+│   ├── retrieval/
+│   │   ├── bm25.py
+│   │   ├── dense.py
+│   │   ├── hybrid.py
+│   │   └── rrf.py
+│   │
+│   ├── reranker/
+│   │   └── reranker.py
+│   │
+│   ├── multimodal/
+│   │   └── vlm.py
+│   │
+│   ├── agent/
+│   │   ├── agent.py
+│   │   ├── router.py
+│   │   ├── grader.py
+│   │   └── tools.py
+│   │
+│   ├── llm/
+│   │   ├── client.py
+│   │   └── prompts.py
+│   │
+│   └── evaluation/
+│       ├── retrieval_eval.py
+│       ├── generation_eval.py
+│       └── rag_eval.py
+│
+├── api/
+│   └── main.py
+│
+├── finetune/
+│   ├── dataset.py
+│   ├── train_lora.py
+│   └── eval.py
+│
+├── benchmark/
+│   ├── retrieval/
+│   └── generation/
+│
+├── tests/
+│
+└── demo/
+```
+
+这个结构本身就会给面试官非常好的第一印象。
+
+---
+
+# 三十五、技术栈我建议控制在这些
+
+不要疯狂堆框架。
+
+核心：
+
+```text
+Python
+PyTorch
+Transformers
+FastAPI
+FAISS / Qdrant
+BM25
+Cross Encoder
+VLM
+vLLM
+PEFT / LoRA
+Docker
+```
+
+Agent 部分可以：
+
+```text
+自己实现主要逻辑
+```
+
+再适量使用 Agent framework。
+
+这很重要。
+
+因为如果整个项目全是：
+
+```text
+LangChain.xxx()
+
+LangGraph.xxx()
+```
+
+面试官很容易怀疑：
+
+> 你到底理解底层还是只会调用框架？
+
+所以：
+
+### Retrieval
+尽量自己实现。
+
+### RRF
+自己实现。
+
+### Reranking pipeline
+自己实现。
+
+### Agent state machine
+最好自己实现核心版本。
+
+框架只负责：
+
+> orchestration。
+
+---
+
+# 三十六、版本路线
+
+千万不要一口吃完。
+
+建议分五版。
+
+## V0：Naive RAG
+
+两周内完成：
+
+```text
+PDF
+↓
+Text
+↓
+Chunk
+↓
+Embedding
+↓
+FAISS
+↓
+LLM
+```
+
+能跑。
+
+---
+
+# V1：高质量 RAG
+
+加入：
+
+```text
+Structure Chunking
+
+BM25
+
+Dense Retrieval
+
+RRF
+
+Reranker
+
+Citation
+```
+
+这时候已经可以写简历。
+
+---
+
+# V2：Multimodal RAG
+
+加入：
+
+```text
+Figure
+
+Table
+
+VLM
+
+Multimodal Retrieval
+```
+
+项目开始有明显区分度。
+
+---
+
+# V3：Agentic RAG
+
+加入：
+
+```text
+Query Router
+
+Tool Calling
+
+Evidence Grader
+
+Retry Retrieval
+
+Python Tool
+
+Multi-document Analysis
+```
+
+这时候项目已经比较强。
+
+---
+
+# V4：算法与工程完整化
+
+最后加入：
+
+```text
+LoRA
+
+PaperMind-Bench
+
+vLLM
+
+Docker
+
+FastAPI
+
+Benchmark
+```
+
+到这里，你就拥有一个非常完整的 AI 算法工程项目。
+
+---
+
+# 三十七、你真正应该重点花时间的比例
+
+我会建议：
+
+```text
+20% 文档解析
+
+25% Retrieval / Reranking
+
+15% Multimodal
+
+15% Agent
+
+15% Evaluation
+
+10% Deployment
+```
+
+而不是：
+
+```text
+70% 做漂亮 UI
+
+20% Prompt
+
+10% API
+```
+
+因为你目标是：
+
+> **AI算法工程师**
+
+不是 AI 产品经理，也不是 Web 开发。
+
+---
+
+# 三十八、最终你至少要拿出 4 张核心实验表
+
+### 表 1：Chunk Strategy
+
+| Chunk | Recall@5 |
+|---|---:|
+| Fixed | XX |
+| Semantic | XX |
+| Structure-aware | XX |
+
+---
+
+### 表 2：Retrieval
+
+| Method | R@1 | R@5 | MRR |
+|---|---:|---:|---:|
+| BM25 | XX | XX | XX |
+| Dense | XX | XX | XX |
+| Hybrid | XX | XX | XX |
+| Hybrid + Reranker | XX | XX | XX |
+
+---
+
+### 表 3：RAG
+
+| System | Accuracy | Faithfulness |
+|---|---:|---:|
+| Naive | XX | XX |
+| +Hybrid | XX | XX |
+| +Rerank | XX | XX |
+| +Agentic | XX | XX |
+
+---
+
+### 表 4：LLM 部署
+
+| Deployment | TTFT | Tokens/s | VRAM |
+|---|---:|---:|---:|
+| HF | XX | XX | XX |
+| vLLM | XX | XX | XX |
+
+如果有这四张真实数据表，PaperMind 的简历价值会非常高。
+
+---
+
+# 三十九、最终项目 README 首页应该直接展示什么
+
+最上方：
+
+> **PaperMind — Multimodal Agentic RAG for Scientific Documents**
+
+下面一句：
+
+> Understand text, tables and figures across scientific papers with hybrid retrieval, reranking and autonomous tool use.
+
+然后马上放：
+
+```text
+Architecture Diagram
+```
+
+下面：
+
+```text
+Demo GIF
+```
+
+再下面：
+
+```text
+Benchmark
+```
+
+不要 README 开头写 1000 字背景。
+
+面试官没时间看。
+
+---
+
+# 四十、你最后的简历描述
+
+等项目真的做完之后，可以变成：
+
+### PaperMind：多模态科研知识库与 Agentic RAG 智能体
+**Python / PyTorch / LLM / RAG / VLM / Reranker / vLLM**
+
+- 面向论文 PDF、表格和模型结构图构建多模态文档解析与知识索引系统，设计基于章节层级和语义边界的 Structure-Aware Chunking，并保留页码、章节、图表等 metadata 实现可溯源问答。
+- 构建 **BM25 + Dense Retrieval + RRF + Cross-Encoder Reranker** 两阶段检索架构，并基于自建 PaperMind-Bench 从 Recall@K、MRR 和 NDCG 等指标系统评估不同检索方案。
+- 设计 Query Router、Evidence Grader 与多轮 Retrieval Loop，构建具备文本检索、图表查询和 Python 数据分析能力的 Agentic RAG，实现跨论文实验结果抽取和自动比较。
+- 基于 VLM 解析论文 Figure/Table，并将视觉语义、Caption 和相邻正文统一纳入多模态知识库，实现图表问答与跨模态检索。
+- 部署本地开源 LLM 推理服务并完成 TTFT、吞吐量、显存占用等 Benchmark。
+
+最后一条最好变成真实数据：
+
+> Hybrid Retrieval + Reranker 使 Recall@5 从 **XX.X% 提升至 XX.X%**，Agentic Retrieval 将复杂跨文档 QA 准确率提高 **XX.X%**。
+
+---
+
+## 我最建议你重点做的三个“亮点”
+
+如果时间有限，不需要把所有功能全做满。
+
+一定把下面三个做深：
+
+**① Hybrid Retrieval + Reranker + 完整 benchmark**
+
+这是最能证明你有“算法能力”的部分。
+
+**② Figure/Table 多模态理解**
+
+这是你区别大量普通 RAG 项目的部分。
+
+**③ Agentic Retrieval + Python Tool**
+
+这是你区别“知识库聊天机器人”和“AI Agent”的部分。
+
+最终形成：
+
+> **多模态**
+> +
+> **检索算法**
+> +
+> **Agent**
+> +
+> **量化评测**
+
+这就是我认为最适合你用于 AI 算法岗简历的 PaperMind 版本。

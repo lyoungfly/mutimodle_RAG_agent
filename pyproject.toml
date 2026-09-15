@@ -13,6 +13,8 @@ dependencies = ["numpy>=1.26,<3", "httpx>=0.27,<1", "python-dotenv>=1,<2"]
 api = ["fastapi>=0.115,<1", "uvicorn[standard]>=0.30,<1", "python-multipart>=0.0.20"]
 pdf = ["pymupdf>=1.24,<2"]
 vision = ["pillow>=11,<13"]
+office = ["python-docx>=1.2,<2", "openpyxl>=3.1.5,<4", "defusedxml>=0.7.1,<1"]
+enterprise = ["langchain>=1.2,<2", "langchain-openai>=1.1,<2", "python-docx>=1.2,<2", "openpyxl>=3.1.5,<4", "defusedxml>=0.7.1,<1", "pymupdf>=1.24,<2"]
 models = ["sentence-transformers>=5.1,<6", "faiss-cpu>=1.8,<2"]
 test = ["pytest>=8,<10", "ruff>=0.11,<1"]
 

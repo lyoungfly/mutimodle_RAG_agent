@@ -7,6 +7,7 @@ class Paragraph:
     text: str
     page: int
     bbox: tuple[float, float, float, float] | None = None
+    source: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(slots=True)
@@ -49,6 +50,8 @@ class Table:
     asset_id: str = ""
     source_figure_id: str = ""
     extraction_method: str = "native"
+    source: dict[str, Any] = field(default_factory=dict)
+    row_numbers: list[int] = field(default_factory=list)
 
 
 @dataclass(slots=True)

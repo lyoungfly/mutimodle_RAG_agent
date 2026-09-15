@@ -3,7 +3,7 @@ const cards = {};
 let dirty = false;
 let working = false;
 async function api(path, method = 'GET', body) {
-  const response = await fetch(path, {method, cache: 'no-store', headers: {'Content-Type': 'application/json'},
+  const response = await fetch(path, {method, cache: 'no-store', credentials:'same-origin', headers: await sessionHeaders({method, headers:{'Content-Type': 'application/json'}}),
     ...(body ? {body: JSON.stringify(body)} : {})});
   const result = await response.json();
   if (!response.ok) throw new Error(typeof result.detail === 'string' ? result.detail : '请求失败，请检查填写内容。');
@@ -87,5 +87,8 @@ async function initialize() {
   lock(true);
   try {populate(await api('/api/settings')); lock(false); status(byId('save-status'), '已读取当前配置。修改后请保存；测试连接不会保存配置。');}
   catch (error) {status(byId('save-status'), error.message, false);}
+}
+if (new URLSearchParams(location.search).get('workspace') === 'enterprise') {
+  document.querySelectorAll('a[href="/"]').forEach(link => {link.href = '/?workspace=enterprise';});
 }
 initialize();

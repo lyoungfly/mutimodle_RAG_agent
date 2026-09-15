@@ -203,3 +203,21 @@ def test_refusal_is_not_retried_or_parsed(monkeypatch):
     with pytest.raises(ModelResponseError, match="拒绝"):
         CompatibleLLM("http://model/v1", "test").answer("Question", [])
     assert len(requests) == 1
+
+
+def test_enterprise_prompt_does_not_mutate_research_client(monkeypatch):
+    prompts = []
+
+    def handler(request):
+        prompts.append(json.loads(request.content)["messages"][0]["content"])
+        return httpx.Response(
+            200, json={"choices": [{"message": {"content": '{"abstain":true}'}}]}
+        )
+
+    install_transport(monkeypatch, handler)
+    llm = CompatibleLLM("http://model/v1", "test")
+    llm.for_enterprise().answer("Question", [])
+    llm.answer("Question", [])
+    assert "企业知识库模式" in prompts[0]
+    assert "公式缓存" in prompts[0]
+    assert "企业知识库模式" not in prompts[1]

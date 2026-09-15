@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from starlette.concurrency import run_in_threadpool
 
 from papermind.model_api import APIEndpoint
+from papermind.enterprise.authorization import require_admin
 
 
 class EndpointInput(BaseModel):
@@ -27,6 +28,7 @@ class SettingsInput(BaseModel):
 
 
 def local_access(request: Request, response: Response):
+    require_admin(request.app.state.access, request.state.actor)
     response.headers["Cache-Control"] = "no-store"
     host = request.client.host if request.client else ""
     try:

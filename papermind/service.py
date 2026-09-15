@@ -122,7 +122,9 @@ class PaperMindService:
         filename = filename.replace("\\", "/").rsplit("/", 1)[-1]
         suffix = Path(filename).suffix.lower()
         if suffix not in self.parser.supported:
-            raise ValueError("Supported formats: PDF, TXT, MD, CSV, PNG, JPEG, WebP")
+            raise ValueError(
+                "Supported formats: PDF, DOCX, XLSX, TXT, MD, CSV, PNG, JPEG, WebP"
+            )
         if not content or len(content) > self.settings.max_upload_bytes:
             raise ValueError("File is empty or exceeds the upload size limit")
         identity = hashlib.sha256(
@@ -152,7 +154,7 @@ class PaperMindService:
             "collection_id": collection,
         }
 
-    def index(self, document_id: str, collection: str = "default") -> dict:
+    def index(self, document_id: str, collection: str = "default", before_commit=None) -> dict:
         validate_collection(collection)
         # 解析和编码成功后一次性提交，失败时保留旧索引。
         with self._lock:
@@ -194,6 +196,8 @@ class PaperMindService:
                     anchors[f.figure_id]: image_rows[i]
                     for i, f in enumerate(document.figures)
                 }
+            if before_commit:
+                before_commit()
             self.store.replace_index(
                 document,
                 collection,
@@ -302,7 +306,10 @@ class PaperMindService:
         k: int = 5,
         filters: SearchFilter | None = None,
         mode: str = "auto",
+        workspace_mode: str = "research",
     ) -> dict:
+        if workspace_mode not in {"research", "enterprise"}:
+            raise ValueError("Unsupported workspace mode")
         start = time.perf_counter()
         hits = self.search(question, collection, k, filters, mode)
         sources = []
@@ -313,10 +320,15 @@ class PaperMindService:
                 id=i,
                 score=hit.score,
                 scores=hit.scores,
-                url=f"/documents/{hit.chunk.document_id}/file?collection_id={quote(collection)}#page={hit.chunk.page}",
+                url=f"/documents/{hit.chunk.document_id}/file?collection_id={quote(collection)}"
+                + (f"#page={hit.chunk.page}" if hit.chunk.page > 0 else ""),
             )
             sources.append(source)
-        response = generate_answer(question, hits, sources, self.llm)
+        llm = self.llm
+        if workspace_mode == "enterprise" and isinstance(llm, CompatibleLLM):
+            llm = llm.for_enterprise()
+        response = generate_answer(question, hits, sources, llm)
+        response["workspace_mode"] = workspace_mode
         response["latency"] = round(time.perf_counter() - start, 4)
         retriever = self.retriever(collection)
         response["retrieval_mode"] = retriever.resolve_mode(mode)

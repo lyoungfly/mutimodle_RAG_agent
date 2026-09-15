@@ -47,6 +47,25 @@ class StructureChunker:
             parents.append((section.level, section.title))
             buffer, page, boxes = "", 1, []
             for paragraph in section.paragraphs:
+                if paragraph.source:
+                    if buffer:
+                        add(
+                            buffer,
+                            page,
+                            section.title,
+                            parent_section=parent,
+                            bboxes=boxes,
+                        )
+                        buffer, boxes = "", []
+                    for part in split_text(paragraph.text, self.max_chars):
+                        add(
+                            part,
+                            paragraph.page,
+                            section.title,
+                            parent_section=parent,
+                            source=paragraph.source.copy(),
+                        )
+                    continue
                 for part in split_text(paragraph.text, self.max_chars):
                     if buffer and (
                         page != paragraph.page
@@ -70,6 +89,14 @@ class StructureChunker:
             # 按行切分并重复表头，保留行号以定位完整结构化数据。
             header = " | ".join(table.headers)
             for row_index, row in enumerate(table.rows):
+                location = table.source.copy()
+                if location and table.row_numbers:
+                    number = table.row_numbers[row_index]
+                    location["row"] = number
+                    if location.get("format") == "xlsx":
+                        location["cell_range"] = (
+                            f"A{number}:{location['last_column']}{number}"
+                        )
                 content = f"{table.caption}\n{header}\n" + " | ".join(row)
                 for part in split_text(content, self.max_chars):
                     add(
@@ -79,6 +106,7 @@ class StructureChunker:
                         "table",
                         table_id=table.table_id,
                         row_index=row_index,
+                        **({"source": location} if location else {}),
                         **(
                             {
                                 "extraction_method": "vlm",

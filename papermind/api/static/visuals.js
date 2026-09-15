@@ -1,3 +1,8 @@
+function sourceLocation(source, page) {
+  if (source?.format === 'xlsx') return `${source.sheet} · ${source.cell_range}`;
+  if (source?.format === 'docx') return source.paragraph ? `正文第 ${source.paragraph} 段` : `表格 ${source.table_number}${source.row ? ` · 第 ${source.row} 行` : ''}`;
+  return page > 0 ? `第 ${page} 页` : '原始资料';
+}
 const analysisLabels = {not_configured: '未启用视觉分析', complete: '已生成视觉描述', failed: '视觉分析失败，原图已保留', skipped: '本次未进行视觉分析'};
 function paragraph(text, className = '') {
   const element = document.createElement('p'); element.textContent = text; element.className = className; return element;
@@ -71,8 +76,8 @@ function renderVisualGallery(data, collection) {
     for (const item of items) {
       const card = document.createElement('article'); card.className = 'source';
       const page = document.createElement('a');
-      page.href = `/documents/${data.document_id}/file?collection_id=${encodeURIComponent(collection)}#page=${item.page}`;
-      page.target = '_blank'; page.rel = 'noopener'; page.textContent = `${item.figure_id || item.table_id} · 第 ${item.page} 页 · ${item.section}`;
+      page.href = `/documents/${data.document_id}/file?collection_id=${encodeURIComponent(collection)}${item.page > 0 ? `#page=${item.page}` : ''}`;
+      page.target = '_blank'; page.rel = 'noopener'; page.textContent = `${item.figure_id || item.table_id} · ${sourceLocation(item.source,item.page)} · ${item.section}`;
       const url = item.asset_id ? `/documents/${data.document_id}/assets/${item.asset_id}?collection_id=${encodeURIComponent(collection)}` : '';
       if (kind === 'table') {
         card.append(page);

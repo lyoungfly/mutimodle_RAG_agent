@@ -10,7 +10,18 @@ from .assets import AssetBuffer, image_to_png
 
 class DocumentParser:
     supported = frozenset(
-        {".pdf", ".txt", ".md", ".csv", ".png", ".jpg", ".jpeg", ".webp"}
+        {
+            ".pdf",
+            ".txt",
+            ".md",
+            ".csv",
+            ".png",
+            ".jpg",
+            ".jpeg",
+            ".webp",
+            ".docx",
+            ".xlsx",
+        }
     )
 
     def __init__(
@@ -39,6 +50,25 @@ class DocumentParser:
         document = Document(
             document_id, Path(filename).stem, metadata={"filename": filename}
         )
+        if suffix in {".docx", ".xlsx"}:
+            from .office_common import office_dependencies, validate_office_archive
+
+            office_dependencies()
+            try:
+                validate_office_archive(path)
+                if suffix == ".docx":
+                    from .docx_parser import parse_docx
+
+                    return parse_docx(path, document)
+                from .xlsx_parser import parse_xlsx
+
+                return parse_xlsx(path, document)
+            except (ValueError, RuntimeError):
+                raise
+            except Exception as exc:
+                raise ValueError(
+                    "Office 文件无法解析，请确认未加密，并重新另存为 DOCX/XLSX。"
+                ) from exc
         if suffix == ".pdf":
             from .pdf_parser import parse_pdf
 
